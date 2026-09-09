@@ -9,6 +9,10 @@
 // leaving a project hides it and returning shows that project's own tabs again
 // with its dev script still running. A project's shells outlive its threads.
 //
+// No project on screen means no window: BB gives every thread a project, so a
+// projectless route is the home screen, settings, or a panel — nowhere a shell
+// belongs to.
+//
 // ponytail: one window follows the app-level project. A split layout showing
 // two projects at once would need one window per pane.
 //
@@ -37,10 +41,6 @@ import "@xterm/xterm/css/xterm.css";
  *  any one can mount first, and none needs a shared React tree. It carries no
  *  payload: the window reads the current project from its own context. */
 const OPEN_EVENT = "hmm-floating-terminal:open";
-
-/** Scope key for "no project open", which the server reads as the home
- *  directory. Empty string cannot collide with a project id. */
-const GLOBAL_SCOPE = "";
 
 type Mode = "normal" | "maximized" | "minimized";
 
@@ -202,18 +202,20 @@ function TerminalPane({
 function FloatingTerminalWindow() {
   const rpc = useRpc<typeof rpcContract>();
   const { projectId } = useBbContext();
-  const scopeKey = projectId ?? GLOBAL_SCOPE;
-  // Openness is per scope, so navigating between projects hides and shows the
-  // window on its own instead of leaving one project's shells over another's.
-  const [openScopes, setOpenScopes] = useState<ReadonlySet<string>>(
+  // Openness is per project, so navigating hides and shows the window on its
+  // own instead of leaving one project's shells over another's — or over a
+  // screen that has no project at all.
+  const [openProjects, setOpenProjects] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
-  const isOpen = openScopes.has(scopeKey);
+  const isOpen = projectId !== null && openProjects.has(projectId);
   // Tabs carry the scope they were loaded for; see `resolveScope`.
   const [loaded, setLoaded] = useState<LoadedTabs>(null);
   const [activeByScope, setActiveByScope] = useState<Record<string, string>>(
     {},
   );
+  // `""` matches no loaded scope, so a projectless route resolves to no tabs.
+  const scopeKey = projectId ?? "";
   const { tabs, activeId } = resolveScope(
     loaded,
     scopeKey,
@@ -227,17 +229,19 @@ function FloatingTerminalWindow() {
   );
 
   const open = useCallback(() => {
-    setOpenScopes((current) => new Set(current).add(scopeKey));
+    if (projectId === null) return;
+    setOpenProjects((current) => new Set(current).add(projectId));
     setMode("normal");
-  }, [scopeKey]);
+  }, [projectId]);
 
   const close = useCallback(() => {
-    setOpenScopes((current) => {
+    if (projectId === null) return;
+    setOpenProjects((current) => {
       const next = new Set(current);
-      next.delete(scopeKey);
+      next.delete(projectId);
       return next;
     });
-  }, [scopeKey]);
+  }, [projectId]);
 
   useEffect(() => {
     window.addEventListener(OPEN_EVENT, open);
@@ -266,7 +270,7 @@ function FloatingTerminalWindow() {
   // This refires on every scope change, so returning to a project reads its
   // shells back from BB rather than trusting anything cached here.
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || projectId === null) return;
     let cancelled = false;
     setLoadFailure(null);
     rpc.call("session_list", { projectId }).then(
@@ -303,6 +307,9 @@ function FloatingTerminalWindow() {
   };
 
   const addTab = () => {
+    // Unreachable while the window renders, which needs a project; the guard is
+    // what tells the compiler so.
+    if (projectId === null) return;
     rpc.call("session_create", { ...INITIAL_GRID, projectId }).then(
       (created) => {
         setLoaded({ scope: scopeKey, tabs: [...tabs, created] });

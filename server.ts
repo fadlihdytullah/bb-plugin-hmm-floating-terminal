@@ -5,10 +5,9 @@
 // sessions a scope has, and creates or closes them; the frontend attaches to the
 // host socket directly instead of proxying every byte through the plugin.
 //
-// The scope is a checkout, not a thread. A thread-scoped session would vanish
-// the moment the user opened another thread in the same project, stranding a
-// running dev script in a scope nothing links back to.
-import { homedir } from "node:os";
+// The scope is the project's checkout, not a thread. A thread-scoped session
+// would vanish the moment the user opened another thread in the same project,
+// stranding a running dev script in a scope nothing links back to.
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
@@ -16,11 +15,9 @@ import { z } from "zod";
  *  are never hijacked by the floating window. Tabs are `<TITLE> <n>`. */
 const TITLE = "Hmm floating terminal";
 
-/** Null opens the global session — the launcher is reachable with no project
- *  selected, and that shell belongs to the home directory. */
-const scopeInput = z
-  .object({ projectId: z.string().min(1).nullable() })
-  .strict();
+/** Every scope is a project: BB has no thread without one, and the window is
+ *  hidden wherever no project is open. */
+const scopeInput = z.object({ projectId: z.string().min(1) }).strict();
 
 const tabOutput = z
   .object({ terminalId: z.string(), label: z.string(), cwd: z.string() })
@@ -54,31 +51,21 @@ export default async function plugin(bb: BbPluginApi) {
 
   // ponytail: the project's default source wins; add a source picker if a
   // multi-checkout project ever needs a terminal per checkout.
-  const scopeOf = async (projectId: string | null) => {
-    if (projectId !== null) {
-      const { sources } = await bb.sdk.projects.get({ projectId });
-      const source = sources.find((one) => one.isDefault) ?? sources[0];
-      if (source === undefined) {
-        throw new Error("Project has no checkout to open a terminal in");
-      }
-      return {
-        kind: "host_path",
-        hostId: source.hostId,
-        cwd: source.path,
-      } as const;
+  const scopeOf = async (projectId: string) => {
+    const { sources } = await bb.sdk.projects.get({ projectId });
+    const source = sources.find((one) => one.isDefault) ?? sources[0];
+    if (source === undefined) {
+      throw new Error("Project has no checkout to open a terminal in");
     }
-    // ponytail: first connected host wins; add a host picker if the global
-    // terminal ever needs to target more than one machine.
-    const hosts = await bb.sdk.hosts.list();
-    const host = hosts.find((one) => one.status === "connected") ?? hosts[0];
-    if (host === undefined) {
-      throw new Error("No BB host available for a global terminal");
-    }
-    return { kind: "host_path", hostId: host.id, cwd: homedir() } as const;
+    return {
+      kind: "host_path",
+      hostId: source.hostId,
+      cwd: source.path,
+    } as const;
   };
 
   /** The plugin's own live sessions in one scope, in BB's order. */
-  const own = async (projectId: string | null) => {
+  const own = async (projectId: string) => {
     const { sessions } = await bb.sdk.terminals.list({
       scope: await scopeOf(projectId),
     });

@@ -6,9 +6,9 @@ opened from the sidebar footer, the thread header, or `Ctrl+``.
 ## Access
 
 Every launcher opens the same thing: the terminal of the project you are
-currently looking at, or a global shell in `~` when no project is selected.
+currently looking at.
 
-- **Sidebar footer** — always available, including on the new-thread screen.
+- **Sidebar footer** — available from anywhere inside a project.
 - **Thread header** — the terminal glyph in the header action row, left of BB's
   own controls.
 - **`Ctrl+``** — toggles the window for the current project.
@@ -16,10 +16,15 @@ currently looking at, or a global shell in `~` when no project is selected.
 ## Following the project
 
 Openness is remembered per project. Open the window in project A, switch to
-project B and it steps aside; B is a scope you have not opened it in. Open it
+project B and it steps aside; B is a project you have not opened it in. Open it
 in B too, then return to A and A's tabs come back, with the shell that was
 running still running. Leaving a project never stops its shells — nothing is
 attached, that is all.
+
+Away from any project — the home screen, settings, a plugin panel — the window
+is hidden and the launchers do nothing. BB gives every thread a project, so
+those are the only places without one, and a shell has no checkout to live in
+there.
 
 The window is anchored bottom-right: drag the grip in its top-left corner to
 resize, or use the header buttons to minimize (collapse to the tab bar) and
@@ -41,13 +46,11 @@ anything.
 The plugin does not spawn processes. `session_list` / `session_create` /
 `session_close` ask BB for terminals (`bb.sdk.terminals`) titled
 `Hmm floating terminal <n>` in a `host_path` scope — the project's default
-checkout, or the connected host's home directory when there is no project — and
-the frontend attaches xterm to the host's own socket at `/ws/terminals/<id>`.
-Consequences worth knowing:
+checkout, resolved through `projects.get` — and the frontend attaches xterm to
+the host's own socket at `/ws/terminals/<id>`. Consequences worth knowing:
 
-- The shell starts in the project's default checkout; the global one starts in
-  `~` on the first connected host. A thread working in its own git worktree
-  still gets the project's main checkout, not that worktree.
+- The shell starts in the project's default checkout. A thread working in its
+  own git worktree still gets the project's main checkout, not that worktree.
 - Closing the window leaves every session running. Reopening reattaches to
   them as tabs, with scrollback replayed; a build or an ssh session survives.
   Closing a *tab* kills that shell.
