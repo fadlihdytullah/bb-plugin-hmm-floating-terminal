@@ -3,6 +3,17 @@
 Real shells in a floating, tabbed window that follows the project you are in,
 opened from the sidebar footer, the thread header, or `Ctrl+``.
 
+![The window over a thread, with a dev server running](screenshot-1.png)
+
+Maximized, for when the output is the thing you are reading:
+
+![The window maximized over the full app](screenshot-3.png)
+
+Minimized, it collapses to its own bar in the corner and keeps every shell
+attached:
+
+![The window minimized to a bar](screenshot-2.png)
+
 ## Access
 
 Every launcher opens the same thing: the terminal of the project you are
