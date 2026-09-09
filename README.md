@@ -1,16 +1,25 @@
 # Hmm Floating Terminal
 
-Real shells in a floating, tabbed window, opened from the sidebar footer, the
-thread header, or `Ctrl+``.
+Real shells in a floating, tabbed window that follows the project you are in,
+opened from the sidebar footer, the thread header, or `Ctrl+``.
 
 ## Access
 
-- **Sidebar footer** — always available, including on the new-thread screen and
-  with no thread selected. Opens the global session, started in `~`.
+Every launcher opens the same thing: the terminal of the project you are
+currently looking at, or a global shell in `~` when no project is selected.
+
+- **Sidebar footer** — always available, including on the new-thread screen.
 - **Thread header** — the terminal glyph in the header action row, left of BB's
-  own controls. It opens the terminal of the project you are looking at.
-- **`Ctrl+``** — toggles the window for the project you are looking at, or the
-  global session when you are not in one.
+  own controls.
+- **`Ctrl+``** — toggles the window for the current project.
+
+## Following the project
+
+Openness is remembered per project. Open the window in project A, switch to
+project B and it steps aside; B is a scope you have not opened it in. Open it
+in B too, then return to A and A's tabs come back, with the shell that was
+running still running. Leaving a project never stops its shells — nothing is
+attached, that is all.
 
 The window is anchored bottom-right: drag the grip in its top-left corner to
 resize, or use the header buttons to minimize (collapse to the tab bar) and
@@ -20,9 +29,10 @@ attached — the shell is not restarted.
 ## Tabs
 
 `+` in the tab bar adds a shell in the same scope; `x` on a tab closes that
-shell for good. Closing the last tab closes the window. Tabs are per scope: a
-project's tabs are its own and follow you across that project's threads, and
-the sidebar's global tabs are separate. Only the active tab is mounted —
+shell for good. Closing the last tab closes the window for that project. Tabs
+are per scope: a project's tabs are its own and follow you across that
+project's threads, and the global tabs are separate. The tab you last selected
+in a project is the one you return to. Only the active tab is mounted —
 switching back replays the session's scrollback from BB rather than restarting
 anything.
 
@@ -49,7 +59,7 @@ Consequences worth knowing:
 
 ```sh
 npm install
-node --test lib/frame.test.ts   # window geometry
+node --test lib/frame.test.ts lib/scope.test.ts   # geometry and scope rules
 npx tsc --noEmit
 bb plugin build
 bb plugin reload floating-terminal

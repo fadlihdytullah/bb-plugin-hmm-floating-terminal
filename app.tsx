@@ -2,14 +2,15 @@
 //
 // Three registrations drive one window: a launcher in the thread header's
 // action row, a launcher in the sidebar footer that is reachable with no
-// project open, and an app overlay that owns the floating window itself. The
-// launcher reports its own project through a window event, so the window
-// follows the pane that was clicked rather than a global "current" project;
-// the sidebar reports no project at all, which the server reads as the home
-// directory.
+// project open, and an app overlay that owns the floating window itself.
 //
-// The scope is the project, not the thread: moving between threads of one
-// project must not strand a running dev script in a scope nothing links to.
+// The scope is the project you are looking at, not the thread and not whatever
+// was last clicked. The window remembers which projects it is open in, so
+// leaving a project hides it and returning shows that project's own tabs again
+// with its dev script still running. A project's shells outlive its threads.
+//
+// ponytail: one window follows the app-level project. A split layout showing
+// two projects at once would need one window per pane.
 //
 // Terminal bytes never pass through the plugin server: once the tab list
 // returns terminal ids, xterm attaches straight to the host's own
@@ -28,18 +29,20 @@ import type { rpcContract } from "./server";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { clampSize, defaultSize, maxSize, type Size } from "@/lib/frame";
+import { resolveScope, type LoadedTabs, type Tab } from "@/lib/scope";
 import { cn } from "@/lib/utils";
 import "@xterm/xterm/css/xterm.css";
 
 /** Launcher -> window. A window event keeps the registrations independent:
- *  any one can mount first, and none needs a shared React tree. */
+ *  any one can mount first, and none needs a shared React tree. It carries no
+ *  payload: the window reads the current project from its own context. */
 const OPEN_EVENT = "hmm-floating-terminal:open";
 
-type OpenDetail = { projectId: string | null };
+/** Scope key for "no project open", which the server reads as the home
+ *  directory. Empty string cannot collide with a project id. */
+const GLOBAL_SCOPE = "";
 
 type Mode = "normal" | "maximized" | "minimized";
-
-type Tab = { terminalId: string; label: string; cwd: string };
 
 /** A session is created before its pane exists; the pane resizes the PTY the
  *  moment it attaches, so this only has to be a sane shell width. */
@@ -197,16 +200,25 @@ function TerminalPane({
 }
 
 function FloatingTerminalWindow() {
-  const context = useBbContext();
   const rpc = useRpc<typeof rpcContract>();
-  // `null` closes the window; `{ projectId: null }` is the global
-  // home-directory session, so "open with no project" stays distinct from
-  // "closed".
-  const [session, setSession] = useState<{ projectId: string | null } | null>(
-    null,
+  const { projectId } = useBbContext();
+  const scopeKey = projectId ?? GLOBAL_SCOPE;
+  // Openness is per scope, so navigating between projects hides and shows the
+  // window on its own instead of leaving one project's shells over another's.
+  const [openScopes, setOpenScopes] = useState<ReadonlySet<string>>(
+    () => new Set(),
   );
-  const [tabs, setTabs] = useState<Tab[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const isOpen = openScopes.has(scopeKey);
+  // Tabs carry the scope they were loaded for; see `resolveScope`.
+  const [loaded, setLoaded] = useState<LoadedTabs>(null);
+  const [activeByScope, setActiveByScope] = useState<Record<string, string>>(
+    {},
+  );
+  const { tabs, activeId } = resolveScope(
+    loaded,
+    scopeKey,
+    activeByScope[scopeKey],
+  );
   const [loadFailure, setLoadFailure] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("normal");
   const [attempt, setAttempt] = useState(0);
@@ -214,23 +226,22 @@ function FloatingTerminalWindow() {
     defaultSize(window.innerWidth, window.innerHeight),
   );
 
-  const open = useCallback((next: string | null) => {
-    // Same scope reopened: keep the object so the tab list is not refetched.
-    setSession((current) =>
-      current !== null && current.projectId === next
-        ? current
-        : { projectId: next },
-    );
+  const open = useCallback(() => {
+    setOpenScopes((current) => new Set(current).add(scopeKey));
     setMode("normal");
-  }, []);
+  }, [scopeKey]);
+
+  const close = useCallback(() => {
+    setOpenScopes((current) => {
+      const next = new Set(current);
+      next.delete(scopeKey);
+      return next;
+    });
+  }, [scopeKey]);
 
   useEffect(() => {
-    const onOpen = (event: Event) => {
-      const detail = (event as CustomEvent<OpenDetail>).detail;
-      open(detail?.projectId ?? null);
-    };
-    window.addEventListener(OPEN_EVENT, onOpen);
-    return () => window.removeEventListener(OPEN_EVENT, onOpen);
+    window.addEventListener(OPEN_EVENT, open);
+    return () => window.removeEventListener(OPEN_EVENT, open);
   }, [open]);
 
   useEffect(() => {
@@ -241,38 +252,31 @@ function FloatingTerminalWindow() {
       // before a window-level listener ever saw the shortcut.
       event.preventDefault();
       event.stopPropagation();
-      setSession((current) =>
-        current === null ? { projectId: context.projectId } : null,
-      );
-      setMode("normal");
+      if (isOpen) {
+        close();
+        return;
+      }
+      open();
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [context.projectId]);
+  }, [close, isOpen, open]);
 
   // The project's live sessions become the tabs; an empty scope gets its first.
+  // This refires on every scope change, so returning to a project reads its
+  // shells back from BB rather than trusting anything cached here.
   useEffect(() => {
-    if (session === null) return;
+    if (!isOpen) return;
     let cancelled = false;
     setLoadFailure(null);
-    rpc.call("session_list", { projectId: session.projectId }).then(
+    rpc.call("session_list", { projectId }).then(
       async (listed) => {
         const ready =
           listed.tabs.length > 0
             ? listed.tabs
-            : [
-                await rpc.call("session_create", {
-                  ...INITIAL_GRID,
-                  projectId: session.projectId,
-                }),
-              ];
+            : [await rpc.call("session_create", { ...INITIAL_GRID, projectId })];
         if (cancelled) return;
-        setTabs(ready);
-        setActiveId((current) =>
-          ready.some((tab) => tab.terminalId === current)
-            ? current
-            : (ready[0]?.terminalId ?? null),
-        );
+        setLoaded({ scope: scopeKey, tabs: ready });
       },
       (cause: unknown) => {
         if (cancelled) return;
@@ -282,7 +286,7 @@ function FloatingTerminalWindow() {
     return () => {
       cancelled = true;
     };
-  }, [rpc, session]);
+  }, [isOpen, projectId, rpc, scopeKey]);
 
   useEffect(() => {
     const onResize = () => {
@@ -294,33 +298,30 @@ function FloatingTerminalWindow() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  const selectTab = (terminalId: string) => {
+    setActiveByScope((current) => ({ ...current, [scopeKey]: terminalId }));
+  };
+
   const addTab = () => {
-    if (session === null) return;
-    rpc
-      .call("session_create", { ...INITIAL_GRID, projectId: session.projectId })
-      .then(
-        (created) => {
-          setTabs((current) => [...current, created]);
-          setActiveId(created.terminalId);
-        },
-        (cause: unknown) => {
-          setLoadFailure(cause instanceof Error ? cause.message : String(cause));
-        },
-      );
+    rpc.call("session_create", { ...INITIAL_GRID, projectId }).then(
+      (created) => {
+        setLoaded({ scope: scopeKey, tabs: [...tabs, created] });
+        selectTab(created.terminalId);
+      },
+      (cause: unknown) => {
+        setLoadFailure(cause instanceof Error ? cause.message : String(cause));
+      },
+    );
   };
 
   const closeTab = (terminalId: string) => {
     // Optimistic: the pane unmounts now, and a failed close only leaves an
-    // orphan session that BB's own terminal panel can still reach.
-    setTabs((current) => {
-      const remaining = current.filter((tab) => tab.terminalId !== terminalId);
-      // The last tab closing closes the window — an empty frame has no use.
-      if (remaining.length === 0) setSession(null);
-      setActiveId((active) =>
-        active === terminalId ? (remaining[0]?.terminalId ?? null) : active,
-      );
-      return remaining;
-    });
+    // orphan session that BB's own terminal panel can still reach. The active
+    // tab is derived from `tabs`, so it falls back on its own.
+    const remaining = tabs.filter((tab) => tab.terminalId !== terminalId);
+    setLoaded({ scope: scopeKey, tabs: remaining });
+    // The last tab closing closes the window — an empty frame has no use.
+    if (remaining.length === 0) close();
     void rpc.call("session_close", { terminalId });
   };
 
@@ -352,7 +353,7 @@ function FloatingTerminalWindow() {
     grip.addEventListener("pointercancel", stop);
   };
 
-  if (session === null) return null;
+  if (!isOpen) return null;
 
   const frame =
     mode === "maximized" ? maxSize(window.innerWidth, window.innerHeight) : size;
@@ -411,7 +412,7 @@ function FloatingTerminalWindow() {
                 <button
                   aria-selected={tab.terminalId === activeId}
                   className="px-2 py-0.5 text-xs hover:text-foreground"
-                  onClick={() => setActiveId(tab.terminalId)}
+                  onClick={() => selectTab(tab.terminalId)}
                   role="tab"
                   title={tab.cwd}
                   type="button"
@@ -478,7 +479,7 @@ function FloatingTerminalWindow() {
         <Button
           aria-label="Close terminal"
           className="size-6 text-muted-foreground hover:text-foreground"
-          onClick={() => setSession(null)}
+          onClick={close}
           size="icon"
           variant="ghost"
         >
@@ -511,20 +512,16 @@ function FloatingTerminalWindow() {
   );
 }
 
-function openTerminal(projectId: string | null): void {
-  window.dispatchEvent(
-    new CustomEvent<OpenDetail>(OPEN_EVENT, { detail: { projectId } }),
-  );
+function openTerminal(): void {
+  window.dispatchEvent(new Event(OPEN_EVENT));
 }
 
-function ThreadHeaderTerminalAction({
-  projectId,
-}: PluginThreadHeaderActionProps) {
+function ThreadHeaderTerminalAction(_props: PluginThreadHeaderActionProps) {
   return (
     <Button
       aria-label="Floating terminal (Ctrl+`)"
       className="size-7 text-muted-foreground hover:text-foreground"
-      onClick={() => openTerminal(projectId)}
+      onClick={openTerminal}
       size="icon"
       variant="ghost"
     >
@@ -549,6 +546,6 @@ export default definePluginApp((app) => {
     id: "floating-terminal",
     title: "Floating terminal (Ctrl+`)",
     icon: "Terminal",
-    run: () => openTerminal(null),
+    run: openTerminal,
   });
 });
