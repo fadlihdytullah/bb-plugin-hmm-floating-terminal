@@ -8,9 +8,9 @@ thread header, or `Ctrl+``.
 - **Sidebar footer** — always available, including on the new-thread screen and
   with no thread selected. Opens the global session, started in `~`.
 - **Thread header** — the terminal glyph in the header action row, left of BB's
-  own controls. Each pane in a split layout opens its own thread's terminal.
-- **`Ctrl+``** — toggles the window for the thread you are looking at, or the
-  global session when you are not looking at one.
+  own controls. It opens the terminal of the project you are looking at.
+- **`Ctrl+``** — toggles the window for the project you are looking at, or the
+  global session when you are not in one.
 
 The window is anchored bottom-right: drag the grip in its top-left corner to
 resize, or use the header buttons to minimize (collapse to the tab bar) and
@@ -21,20 +21,23 @@ attached — the shell is not restarted.
 
 `+` in the tab bar adds a shell in the same scope; `x` on a tab closes that
 shell for good. Closing the last tab closes the window. Tabs are per scope: a
-thread's tabs are its own, and the sidebar's global tabs are shared across the
-app. Only the active tab is mounted — switching back replays the session's
-scrollback from BB rather than restarting anything.
+project's tabs are its own and follow you across that project's threads, and
+the sidebar's global tabs are separate. Only the active tab is mounted —
+switching back replays the session's scrollback from BB rather than restarting
+anything.
 
 ## What runs
 
 The plugin does not spawn processes. `session_list` / `session_create` /
 `session_close` ask BB for terminals (`bb.sdk.terminals`) titled
-`Hmm floating terminal <n>` — scoped to the thread, or to the connected host's home
-directory when there is no thread — and the frontend attaches xterm to the
-host's own socket at `/ws/terminals/<id>`. Consequences worth knowing:
+`Hmm floating terminal <n>` in a `host_path` scope — the project's default
+checkout, or the connected host's home directory when there is no project — and
+the frontend attaches xterm to the host's own socket at `/ws/terminals/<id>`.
+Consequences worth knowing:
 
-- The shell is the thread environment's default shell, started in its worktree;
-  the global one starts in `~` on the first connected host.
+- The shell starts in the project's default checkout; the global one starts in
+  `~` on the first connected host. A thread working in its own git worktree
+  still gets the project's main checkout, not that worktree.
 - Closing the window leaves every session running. Reopening reattaches to
   them as tabs, with scrollback replayed; a build or an ssh session survives.
   Closing a *tab* kills that shell.

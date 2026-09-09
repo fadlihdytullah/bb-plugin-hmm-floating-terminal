@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-hmm-floating-terminal",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "engines": {
     "bb": ">=0.42",
@@ -8,7 +8,7 @@
   },
   "bb": {
     "name": "Hmm Floating Terminal",
-    "description": "A resizable, tabbed floating terminal opened from the thread header, the sidebar footer, or the Ctrl+backtick shortcut.",
+    "description": "A resizable, tabbed floating terminal scoped to the project, opened from the thread header, the sidebar footer, or the Ctrl+backtick shortcut.",
     "branding": {
       "icon": "Terminal"
     },

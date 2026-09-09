@@ -1,12 +1,15 @@
 // bb-plugin-hmm-floating-terminal — frontend.
 //
 // Three registrations drive one window: a launcher in the thread header's
-// action row, a launcher in the sidebar footer that is reachable with no thread
-// open, and an app overlay that owns the floating window itself. The launcher
-// reports its own thread through a window event, so a split layout opens the
-// terminal of the pane that was clicked rather than a global "current" thread;
-// the sidebar reports no thread at all, which the server reads as the home
+// action row, a launcher in the sidebar footer that is reachable with no
+// project open, and an app overlay that owns the floating window itself. The
+// launcher reports its own project through a window event, so the window
+// follows the pane that was clicked rather than a global "current" project;
+// the sidebar reports no project at all, which the server reads as the home
 // directory.
+//
+// The scope is the project, not the thread: moving between threads of one
+// project must not strand a running dev script in a scope nothing links to.
 //
 // Terminal bytes never pass through the plugin server: once the tab list
 // returns terminal ids, xterm attaches straight to the host's own
@@ -32,7 +35,7 @@ import "@xterm/xterm/css/xterm.css";
  *  any one can mount first, and none needs a shared React tree. */
 const OPEN_EVENT = "hmm-floating-terminal:open";
 
-type OpenDetail = { threadId: string | null };
+type OpenDetail = { projectId: string | null };
 
 type Mode = "normal" | "maximized" | "minimized";
 
@@ -196,9 +199,10 @@ function TerminalPane({
 function FloatingTerminalWindow() {
   const context = useBbContext();
   const rpc = useRpc<typeof rpcContract>();
-  // `null` closes the window; `{ threadId: null }` is the global home-directory
-  // session, so "open with no thread" stays distinct from "closed".
-  const [session, setSession] = useState<{ threadId: string | null } | null>(
+  // `null` closes the window; `{ projectId: null }` is the global
+  // home-directory session, so "open with no project" stays distinct from
+  // "closed".
+  const [session, setSession] = useState<{ projectId: string | null } | null>(
     null,
   );
   const [tabs, setTabs] = useState<Tab[]>([]);
@@ -213,9 +217,9 @@ function FloatingTerminalWindow() {
   const open = useCallback((next: string | null) => {
     // Same scope reopened: keep the object so the tab list is not refetched.
     setSession((current) =>
-      current !== null && current.threadId === next
+      current !== null && current.projectId === next
         ? current
-        : { threadId: next },
+        : { projectId: next },
     );
     setMode("normal");
   }, []);
@@ -223,7 +227,7 @@ function FloatingTerminalWindow() {
   useEffect(() => {
     const onOpen = (event: Event) => {
       const detail = (event as CustomEvent<OpenDetail>).detail;
-      open(detail?.threadId ?? null);
+      open(detail?.projectId ?? null);
     };
     window.addEventListener(OPEN_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_EVENT, onOpen);
@@ -238,20 +242,20 @@ function FloatingTerminalWindow() {
       event.preventDefault();
       event.stopPropagation();
       setSession((current) =>
-        current === null ? { threadId: context.threadId } : null,
+        current === null ? { projectId: context.projectId } : null,
       );
       setMode("normal");
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [context.threadId]);
+  }, [context.projectId]);
 
-  // The scope's live sessions become the tabs; an empty scope gets its first.
+  // The project's live sessions become the tabs; an empty scope gets its first.
   useEffect(() => {
     if (session === null) return;
     let cancelled = false;
     setLoadFailure(null);
-    rpc.call("session_list", { threadId: session.threadId }).then(
+    rpc.call("session_list", { projectId: session.projectId }).then(
       async (listed) => {
         const ready =
           listed.tabs.length > 0
@@ -259,7 +263,7 @@ function FloatingTerminalWindow() {
             : [
                 await rpc.call("session_create", {
                   ...INITIAL_GRID,
-                  threadId: session.threadId,
+                  projectId: session.projectId,
                 }),
               ];
         if (cancelled) return;
@@ -293,7 +297,7 @@ function FloatingTerminalWindow() {
   const addTab = () => {
     if (session === null) return;
     rpc
-      .call("session_create", { ...INITIAL_GRID, threadId: session.threadId })
+      .call("session_create", { ...INITIAL_GRID, projectId: session.projectId })
       .then(
         (created) => {
           setTabs((current) => [...current, created]);
@@ -507,20 +511,20 @@ function FloatingTerminalWindow() {
   );
 }
 
-function openTerminal(threadId: string | null): void {
+function openTerminal(projectId: string | null): void {
   window.dispatchEvent(
-    new CustomEvent<OpenDetail>(OPEN_EVENT, { detail: { threadId } }),
+    new CustomEvent<OpenDetail>(OPEN_EVENT, { detail: { projectId } }),
   );
 }
 
 function ThreadHeaderTerminalAction({
-  threadId,
+  projectId,
 }: PluginThreadHeaderActionProps) {
   return (
     <Button
       aria-label="Floating terminal (Ctrl+`)"
       className="size-7 text-muted-foreground hover:text-foreground"
-      onClick={() => openTerminal(threadId)}
+      onClick={() => openTerminal(projectId)}
       size="icon"
       variant="ghost"
     >
@@ -540,7 +544,7 @@ export default definePluginApp((app) => {
     component: ThreadHeaderTerminalAction,
   });
   // Host-rendered, always mounted: the one launcher that survives the new-thread
-  // screen and an empty thread list.
+  // screen and an empty project list.
   app.slots.sidebarFooterAction({
     id: "floating-terminal",
     title: "Floating terminal (Ctrl+`)",
