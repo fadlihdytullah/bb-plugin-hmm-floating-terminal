@@ -13,7 +13,9 @@ project you are in, without leaving the conversation for a panel or another app.
   screen, settings, a panel — the window stays out of the way.
 - `+` in the title bar adds another shell in the same project, `x` closes one.
   The tab you were last on is the tab you come back to.
-- Ctrl and backtick toggles the window for the project you are in.
+- Ctrl and backtick opens a closed terminal, closes a normal terminal, and
+  switches between maximized and minimized modes when the window is already in
+  either mode.
 - Drag the top-left grip to resize, or minimize and maximize from the title
   bar. Minimizing keeps every shell attached.
 

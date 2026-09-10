@@ -23,12 +23,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import {
   definePluginApp,
+  experimental_useCodeTheme,
   useBbContext,
   useRpc,
   type PluginThreadHeaderActionProps,
 } from "@get-bb/plugin-sdk/app";
 import { FitAddon } from "@xterm/addon-fit";
-import { Terminal } from "@xterm/xterm";
+import { Terminal, type ITheme } from "@xterm/xterm";
 import type { rpcContract } from "./server";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -54,6 +55,58 @@ const ESC = String.fromCharCode(27);
 /** Nerd Font first so powerline prompts render; every fallback is monospace. */
 const FONT_FAMILY =
   '"MesloLGS Nerd Font", "JetBrainsMono Nerd Font", "FiraCode Nerd Font", "SFMono-Regular", Menlo, Consolas, monospace';
+
+/** xterm's 16-colour palette, in ANSI order: `--ansi-0` is `black`. */
+const ANSI = [
+  "black",
+  "red",
+  "green",
+  "yellow",
+  "blue",
+  "magenta",
+  "cyan",
+  "white",
+  "brightBlack",
+  "brightRed",
+  "brightGreen",
+  "brightYellow",
+  "brightBlue",
+  "brightMagenta",
+  "brightCyan",
+  "brightWhite",
+] as const;
+
+/** The palette BB paints its own terminal with. Reading the same variables is
+ *  what keeps this window on the user's theme instead of xterm's defaults.
+ *
+ *  A throwaway span resolves each variable through `color`, so an `oklch()`
+ *  or a chained `var()` reaches xterm as the plain `rgb()` string it parses. */
+function xtermTheme(): ITheme {
+  const probe = document.createElement("span");
+  probe.style.cssText =
+    "position:absolute;visibility:hidden;pointer-events:none";
+  document.body.appendChild(probe);
+  const read = (variable: string): string | undefined => {
+    const value = getComputedStyle(document.documentElement)
+      .getPropertyValue(variable)
+      .trim();
+    if (value === "") return undefined;
+    probe.style.color = value;
+    return getComputedStyle(probe).color;
+  };
+  const theme: ITheme = {
+    background: read("--sidebar"),
+    foreground: read("--foreground"),
+    cursor: read("--foreground"),
+    cursorAccent: read("--sidebar"),
+    selectionBackground: read("--muted"),
+    ...Object.fromEntries(
+      ANSI.map((name, index) => [name, read(`--ansi-${index}`)]),
+    ),
+  };
+  probe.remove();
+  return theme;
+}
 
 function encodeBase64(text: string): string {
   const bytes = new TextEncoder().encode(text);
@@ -98,7 +151,11 @@ function TerminalPane({
   terminalId: string;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const termRef = useRef<Terminal | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  // The code theme carries both the palette and light/dark, and BB derives the
+  // ANSI variables from it: when it changes, the terminal's colours are stale.
+  const { mode, name } = experimental_useCodeTheme();
 
   useEffect(() => {
     const host = hostRef.current;
@@ -112,7 +169,9 @@ function TerminalPane({
       fontWeight: "400",
       fontWeightBold: "700",
       scrollback: 5000,
+      theme: xtermTheme(),
     });
+    termRef.current = term;
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(host);
@@ -175,11 +234,17 @@ function TerminalPane({
       input.dispose();
       socket.close();
       term.dispose();
+      termRef.current = null;
     };
   }, [attempt, terminalId]);
 
+  useEffect(() => {
+    const term = termRef.current;
+    if (term !== null) term.options.theme = xtermTheme();
+  }, [mode, name]);
+
   return (
-    <div className="relative min-h-0 flex-1 bg-black">
+    <div className="relative min-h-0 flex-1 bg-sidebar">
       <div className="absolute inset-0 p-2" ref={hostRef} />
       {failure === null ? null : (
         <div
@@ -257,6 +322,14 @@ function FloatingTerminalWindow() {
       event.preventDefault();
       event.stopPropagation();
       if (isOpen) {
+        if (mode === "maximized") {
+          setMode("minimized");
+          return;
+        }
+        if (mode === "minimized") {
+          setMode("maximized");
+          return;
+        }
         close();
         return;
       }
@@ -264,7 +337,7 @@ function FloatingTerminalWindow() {
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [close, isOpen, open]);
+  }, [close, isOpen, mode, open]);
 
   // The project's live sessions become the tabs; an empty scope gets its first.
   // This refires on every scope change, so returning to a project reads its

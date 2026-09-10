@@ -22,7 +22,9 @@ currently looking at.
 - **Sidebar footer** — available from anywhere inside a project.
 - **Thread header** — the terminal glyph in the header action row, left of BB's
   own controls.
-- **`Ctrl+``** — toggles the window for the current project.
+- **`Ctrl+``** — opens a closed terminal, closes a normal terminal, and switches
+  between maximized and minimized modes when the window is already in either
+  mode.
 
 ## Following the project
 

@@ -52,7 +52,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fadlihdytullah/hmm-floating-terminal.git"
+    "url": "git+https://github.com/fadlihdytullah/bb-plugin-hmm-floating-terminal.git"
   },
   "license": "MIT"
 }
