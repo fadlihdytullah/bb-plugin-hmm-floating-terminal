@@ -1,7 +1,7 @@
 # Hmm Floating Terminal
 
 Real shells in a floating, tabbed window that follows the project you are in,
-opened from the sidebar footer, the thread header, or `Ctrl+``.
+opened from the New thread composer, the thread header, or `Ctrl+``.
 
 ![The window over a thread, with a dev server running](screenshot-1.png)
 
@@ -19,7 +19,8 @@ attached:
 Every launcher opens the same thing: the terminal of the project you are
 currently looking at.
 
-- **Sidebar footer** — available from anywhere inside a project.
+- **New thread composer** — when a project is selected, the terminal glyph
+  appears in the composer's action row, beside the microphone.
 - **Thread header** — the terminal glyph in the header action row, left of BB's
   own controls.
 - **`Ctrl+``** — opens a closed terminal, closes a normal terminal, and switches
@@ -34,10 +35,9 @@ in B too, then return to A and A's tabs come back, with the shell that was
 running still running. Leaving a project never stops its shells — nothing is
 attached, that is all.
 
-Away from any project — the home screen, settings, a plugin panel — the window
-is hidden and the launchers do nothing. BB gives every thread a project, so
-those are the only places without one, and a shell has no checkout to live in
-there.
+Away from any project — the home screen, settings, a plugin panel, or a New
+thread before project selection — the window is hidden and the launchers do
+nothing. A shell has no checkout to live in there.
 
 The window is anchored bottom-right: drag the grip in its top-left corner to
 resize, or use the header buttons to minimize (collapse to the title bar, tabs

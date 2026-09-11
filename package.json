@@ -8,7 +8,7 @@
   },
   "bb": {
     "name": "Hmm Floating Terminal",
-    "description": "A resizable, tabbed floating terminal that follows the project you are in, opened from the thread header, the sidebar footer, or Ctrl+backtick.",
+    "description": "A resizable, tabbed floating terminal that follows the project you are in, opened from the New thread composer, the thread header, or Ctrl+backtick.",
     "branding": {
       "icon": "Terminal"
     },

@@ -1,8 +1,8 @@
 // bb-plugin-hmm-floating-terminal — frontend.
 //
-// Three registrations drive one window: a launcher in the thread header's
-// action row, a launcher in the sidebar footer that is reachable with no
-// project open, and an app overlay that owns the floating window itself.
+// Two launchers drive one window: one in the thread header's action row and one
+// in the New thread composer's action row once a project is selected. The app
+// overlay owns the floating window itself.
 //
 // The scope is the project you are looking at, not the thread and not whatever
 // was last clicked. The window remembers which projects it is open in, so
@@ -19,12 +19,19 @@
 // Terminal bytes never pass through the plugin server: once the tab list
 // returns terminal ids, xterm attaches straight to the host's own
 // `/ws/terminals/<id>` socket.
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import {
   definePluginApp,
   experimental_useCodeTheme,
   useBbContext,
+  useComposerView,
   useRpc,
   type PluginThreadHeaderActionProps,
 } from "@get-bb/plugin-sdk/app";
@@ -42,6 +49,23 @@ import "@xterm/xterm/css/xterm.css";
  *  any one can mount first, and none needs a shared React tree. It carries no
  *  payload: the window reads the current project from its own context. */
 const OPEN_EVENT = "hmm-floating-terminal:open";
+
+/** The project picked in the root New thread composer. That route carries no
+ *  project, so `useBbContext` reports null there; the composer action publishes
+ *  its selection here for the overlay to follow. Module scope, not an event, so
+ *  it holds whichever registration mounts first. */
+let composeProjectId: string | null = null;
+const composeListeners = new Set<() => void>();
+
+function setComposeProject(next: string | null): void {
+  composeProjectId = next;
+  for (const listener of composeListeners) listener();
+}
+
+function subscribeComposeProject(listener: () => void): () => void {
+  composeListeners.add(listener);
+  return () => composeListeners.delete(listener);
+}
 
 type Mode = "normal" | "maximized" | "minimized";
 
@@ -266,7 +290,12 @@ function TerminalPane({
 
 function FloatingTerminalWindow() {
   const rpc = useRpc<typeof rpcContract>();
-  const { projectId } = useBbContext();
+  const routeProjectId = useBbContext().projectId;
+  const composedProjectId = useSyncExternalStore(
+    subscribeComposeProject,
+    () => composeProjectId,
+  );
+  const projectId = routeProjectId ?? composedProjectId;
   // Openness is per project, so navigating hides and shows the window on its
   // own instead of leaving one project's shells over another's — or over a
   // screen that has no project at all.
@@ -596,11 +625,11 @@ function openTerminal(): void {
   window.dispatchEvent(new Event(OPEN_EVENT));
 }
 
-function ThreadHeaderTerminalAction(_props: PluginThreadHeaderActionProps) {
+function TerminalActionButton({ className = "size-7" }: { className?: string }) {
   return (
     <Button
       aria-label="Floating terminal (Ctrl+`)"
-      className="size-7 text-muted-foreground hover:text-foreground"
+      className={cn("text-muted-foreground hover:text-foreground", className)}
       onClick={openTerminal}
       size="icon"
       variant="ghost"
@@ -608,6 +637,25 @@ function ThreadHeaderTerminalAction(_props: PluginThreadHeaderActionProps) {
       <Icon name="Terminal" className="size-4" />
     </Button>
   );
+}
+
+function ThreadHeaderTerminalAction(_props: PluginThreadHeaderActionProps) {
+  return <TerminalActionButton />;
+}
+
+function NewThreadTerminalAction() {
+  const view = useComposerView();
+  const projectId =
+    view.scope.kind === "new-thread" ? view.scope.projectId : null;
+
+  useEffect(() => {
+    setComposeProject(projectId);
+    return () => setComposeProject(null);
+  }, [projectId]);
+
+  if (projectId === null) return null;
+  // `size-8` matches the composer's other action buttons.
+  return <TerminalActionButton className="size-8" />;
 }
 
 export default definePluginApp((app) => {
@@ -620,12 +668,9 @@ export default definePluginApp((app) => {
     title: "Floating terminal",
     component: ThreadHeaderTerminalAction,
   });
-  // Host-rendered, always mounted: the one launcher that survives the new-thread
-  // screen and an empty project list.
-  app.slots.sidebarFooterAction({
-    id: "floating-terminal",
-    title: "Floating terminal (Ctrl+`)",
-    icon: "Terminal",
-    run: openTerminal,
+  app.composer.customize({
+    id: "floating-terminal-new-thread",
+    scopes: ["new-thread"],
+    actions: [{ id: "terminal", component: NewThreadTerminalAction }],
   });
 });
