@@ -475,8 +475,9 @@ function FloatingTerminalWindow() {
           ? "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
           : "bottom-4 right-4",
       )}
-      // Minimized drops the explicit box entirely: the bar shrinks to its own
-      // tabs and buttons instead of keeping the window's width as dead space.
+      // Minimized drops the explicit box entirely: the bar shrinks to its glyph
+      // and buttons (tabs hidden) instead of keeping the window's width as dead
+      // space.
       style={
         mode === "minimized"
           ? undefined

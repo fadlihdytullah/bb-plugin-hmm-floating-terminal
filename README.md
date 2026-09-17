@@ -20,7 +20,7 @@ Every launcher opens the same thing: the terminal of the project you are
 currently looking at.
 
 - **New thread composer** — when a project is selected, the terminal glyph
-  appears in the composer's action row, beside the microphone.
+  appears in the composer's action row, left of the microphone.
 - **Thread header** — the terminal glyph in the header action row, left of BB's
   own controls.
 - **`Ctrl+``** — opens a closed terminal, closes a normal terminal, and switches
@@ -36,13 +36,18 @@ running still running. Leaving a project never stops its shells — nothing is
 attached, that is all.
 
 Away from any project — the home screen, settings, a plugin panel, or a New
-thread before project selection — the window is hidden and the launchers do
+thread before project selection — the window is hidden and `Ctrl+`` does
 nothing. A shell has no checkout to live in there.
 
 The window is anchored bottom-right: drag the grip in its top-left corner to
-resize, or use the header buttons to minimize (collapse to the title bar, tabs
-included) and maximize (90% of the viewport, centered). Minimizing keeps every
-session attached — no shell is restarted.
+resize, or use the header buttons to minimize (collapse to a small bar with
+just the terminal glyph and the window buttons; tabs come back on restore) and
+maximize (90% of the viewport, centered). Minimizing keeps every session
+attached — no shell is restarted.
+
+The terminal paints itself with BB's own terminal palette — background,
+foreground, selection, and the 16 ANSI colours — and repaints when you switch
+BB's theme.
 
 ## Tabs
 

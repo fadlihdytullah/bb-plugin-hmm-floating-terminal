@@ -9,16 +9,18 @@ project you are in, without leaving the conversation for a panel or another app.
 - Tabs belong to the project checkout, not to a thread, so moving between a
   project's threads never costs you a shell.
 - Two launchers, in the thread header and in the New thread composer's action
-  row after a project is selected. Both open the terminal of
-  the project you are looking at. Away from a project — the home screen,
-  settings, a panel — the window stays out of the way.
+  row after a project is selected. Both open the terminal of the project you
+  are looking at. Away from a project — the home screen, settings, a panel —
+  the window stays out of the way.
 - `+` in the title bar adds another shell in the same project, `x` closes one.
   The tab you were last on is the tab you come back to.
 - Ctrl and backtick opens a closed terminal, closes a normal terminal, and
   switches between maximized and minimized modes when the window is already in
   either mode.
 - Drag the top-left grip to resize, or minimize and maximize from the title
-  bar. Minimizing keeps every shell attached.
+  bar. Minimized, it shrinks to a small bar of window buttons and keeps every
+  shell attached.
+- Colours follow your BB theme and change with it.
 
 ## How it works
 
