@@ -654,7 +654,7 @@ function NewThreadTerminalAction() {
     return () => setComposeProject(null);
   }, [projectId]);
 
-  if (projectId === null) return null;
+  if (projectId === null && view.scope.kind !== "thread") return null;
   // `size-8` matches the composer's other action buttons.
   return <TerminalActionButton className="size-8" />;
 }
@@ -671,7 +671,7 @@ export default definePluginApp((app) => {
   });
   app.composer.customize({
     id: "floating-terminal-new-thread",
-    scopes: ["new-thread"],
+    scopes: ["new-thread", "thread"],
     actions: [{ id: "terminal", component: NewThreadTerminalAction }],
   });
 });
