@@ -8,6 +8,7 @@
 // The scope is the project's checkout, not a thread. A thread-scoped session
 // would vanish the moment the user opened another thread in the same project,
 // stranding a running dev script in a scope nothing links back to.
+import { homedir } from "node:os";
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 
@@ -16,7 +17,8 @@ import { z } from "zod";
 const TITLE = "Hmm floating terminal";
 
 /** Every scope is a project: BB has no thread without one, and the window is
- *  hidden wherever no project is open. */
+ *  hidden wherever no project is open. "No project" is BB's Personal project,
+ *  which has no checkout, so its shells open in the home directory. */
 const scopeInput = z.object({ projectId: z.string().min(1) }).strict();
 
 const tabOutput = z
@@ -54,14 +56,22 @@ export default async function plugin(bb: BbPluginApi) {
   const scopeOf = async (projectId: string) => {
     const { sources } = await bb.sdk.projects.get({ projectId });
     const source = sources.find((one) => one.isDefault) ?? sources[0];
-    if (source === undefined) {
-      throw new Error("Project has no checkout to open a terminal in");
+    if (source !== undefined) {
+      return {
+        kind: "host_path",
+        hostId: source.hostId,
+        cwd: source.path,
+      } as const;
     }
-    return {
-      kind: "host_path",
-      hostId: source.hostId,
-      cwd: source.path,
-    } as const;
+    // ponytail: the plugin server's own home on the first connected host, which
+    // is the server machine on a single-machine setup; pick the server host by
+    // role once the SDK exposes it, if a remote machine ever lists first.
+    const hosts = await bb.sdk.hosts.list();
+    const host = hosts.find((one) => one.status === "connected") ?? hosts[0];
+    if (host === undefined) {
+      throw new Error("No machine to open a terminal on");
+    }
+    return { kind: "host_path", hostId: host.id, cwd: homedir() } as const;
   };
 
   /** The plugin's own live sessions in one scope, in BB's order. */

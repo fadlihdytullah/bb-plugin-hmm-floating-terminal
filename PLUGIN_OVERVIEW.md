@@ -9,8 +9,9 @@ project you are in, without leaving the conversation for a panel or another app.
 - Tabs belong to the project checkout, not to a thread, so moving between a
   project's threads never costs you a shell.
 - Launchers in the thread header and in the composer's action row — in
-  existing threads, and in the New thread composer after a project is selected. Both open the terminal of the project you
-  are looking at. Away from a project — the home screen, settings, a panel —
+  existing threads and in the New thread composer. Both open the terminal of
+  the project you are looking at; with no project selected, it opens in your
+  home directory. Away from a project — the home screen, settings, a panel —
   the window stays out of the way.
 - `+` in the title bar adds another shell in the same project, `x` closes one.
   The tab you were last on is the tab you come back to.
@@ -25,10 +26,10 @@ project you are in, without leaving the conversation for a panel or another app.
 ## How it works
 
 BB already runs terminal sessions. This plugin asks for them in the project's
-checkout and attaches xterm to the host's live socket. Nothing is proxied
-through the plugin, and closing the window leaves every shell running —
-reopening replays the scrollback and picks up where you left off. Closing a tab
-is what ends a shell.
+checkout — or your home directory when there is no project — and attaches
+xterm to the host's live socket. Nothing is proxied through the plugin, and
+closing the window leaves every shell running — reopening replays the
+scrollback and picks up where you left off. Closing a tab is what ends a shell.
 
 ## Requirements
 

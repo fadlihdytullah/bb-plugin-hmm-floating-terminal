@@ -37,9 +37,9 @@ in B too, then return to A and A's tabs come back, with the shell that was
 running still running. Leaving a project never stops its shells — nothing is
 attached, that is all.
 
-Away from any project — the home screen, settings, a plugin panel, or a New
-thread before project selection — the window is hidden and `Ctrl+`` does
-nothing. A shell has no checkout to live in there.
+Away from any project — the home screen, settings, or a plugin panel — the
+window is hidden and `Ctrl+`` does nothing. A New thread with no project
+selected opens its shells in your home directory (`~/`).
 
 The window is anchored bottom-right: drag the grip in its top-left corner to
 resize, or use the header buttons to minimize (collapse to a small bar with
@@ -65,17 +65,20 @@ than restarting anything.
 The plugin does not spawn processes. `session_list` / `session_create` /
 `session_close` ask BB for terminals (`bb.sdk.terminals`) titled
 `Hmm floating terminal <n>` in a `host_path` scope — the project's default
-checkout, resolved through `projects.get` — and the frontend attaches xterm to
+checkout, resolved through `projects.get`, or the home directory for a project
+with no checkout — and the frontend attaches xterm to
 the host's own socket at `/ws/terminals/<id>`. Consequences worth knowing:
 
 - The shell starts in the project's default checkout. A thread working in its
   own git worktree still gets the project's main checkout, not that worktree.
+- No project selected (BB's Personal project, which has no checkout) starts
+  the shell in the home directory of the first connected machine.
 - Closing the window leaves every session running. Reopening reattaches to
   them as tabs, with scrollback replayed; a build or an ssh session survives.
   Closing a *tab* kills that shell.
 - Terminals you open in BB's own terminal panel are untouched — the plugin only
   reuses sessions it created itself.
-- `bb terminal list --machine <host> --cwd <project path>` shows the sessions
+- `bb terminal list --machine <host> --cwd <project path or ~>` shows the sessions
   like any other. `--thread` does not: they carry no thread.
 
 ## Development
