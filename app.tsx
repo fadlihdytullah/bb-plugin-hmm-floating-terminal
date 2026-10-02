@@ -159,6 +159,8 @@ function socketUrl(terminalId: string): string {
   return url.href;
 }
 
+const REPLAY_SETTLE_MS = 200;
+
 /** One xterm bound to one existing session. A remount (bumped `attempt`, or a
  *  tab switch) is the reconnect path: the session lives on the server and the
  *  host replays its scrollback, so nothing is lost.
@@ -220,7 +222,18 @@ function TerminalPane({
     });
     observer.observe(host);
 
+    let replaying = true;
+    let settleTimer: number | undefined;
+    const settle = () => {
+      window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(() => {
+        replaying = false;
+      }, REPLAY_SETTLE_MS);
+    };
+    settle();
+
     const input = term.onData((data) => {
+      if (replaying) return;
       send({ type: "input", dataBase64: encodeBase64(data) });
     });
 
@@ -234,6 +247,7 @@ function TerminalPane({
         message?: string;
       };
       if (message.type === "output" && message.chunk !== undefined) {
+        if (replaying) settle();
         term.write(decodeBase64(message.chunk.dataBase64));
         return;
       }
@@ -254,6 +268,7 @@ function TerminalPane({
 
     return () => {
       disposed = true;
+      window.clearTimeout(settleTimer);
       observer.disconnect();
       input.dispose();
       socket.close();
@@ -269,7 +284,9 @@ function TerminalPane({
 
   return (
     <div className="relative min-h-0 flex-1 bg-sidebar">
-      <div className="absolute inset-0 p-2" ref={hostRef} />
+      <div className="absolute inset-0 p-2">
+        <div className="size-full" ref={hostRef} />
+      </div>
       {failure === null ? null : (
         <div
           className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 border-t border-border bg-card px-3 py-2"

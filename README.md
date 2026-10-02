@@ -58,7 +58,9 @@ shell for good. Closing the last tab closes the window for that project. A
 project's tabs are its own and follow you across that project's threads. The
 tab you last selected in a project is the one you return to. Only the active
 tab is mounted — switching back replays the session's scrollback from BB rather
-than restarting anything.
+than restarting anything. Input is ignored while the replay settles (about
+200ms), so stale terminal queries in the scrollback are not answered into the
+shell.
 
 ## What runs
 
