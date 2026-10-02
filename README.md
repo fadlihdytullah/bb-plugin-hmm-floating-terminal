@@ -53,8 +53,8 @@ BB's theme.
 
 ## Tabs
 
-`+` in the tab bar adds a shell in the same project; `x` on a tab closes that
-shell for good. Closing the last tab closes the window for that project. A
+`+` in the tab bar adds a shell in the same project; double-click a tab to
+rename it (Enter saves, Esc cancels); `x` on a tab closes that shell for good. Closing the last tab closes the window for that project. A
 project's tabs are its own and follow you across that project's threads. The
 tab you last selected in a project is the one you return to. Only the active
 tab is mounted — switching back replays the session's scrollback from BB rather
@@ -65,8 +65,9 @@ shell.
 ## What runs
 
 The plugin does not spawn processes. `session_list` / `session_create` /
-`session_close` ask BB for terminals (`bb.sdk.terminals`) titled
-`Hmm floating terminal <n>` in a `host_path` scope — the project's default
+`session_rename` / `session_close` ask BB for terminals (`bb.sdk.terminals`)
+titled `Hmm floating terminal <n>` (or `Hmm floating terminal · <name>` once
+renamed) in a `host_path` scope — the project's default
 checkout, resolved through `projects.get`, or the home directory for a project
 with no checkout — and the frontend attaches xterm to
 the host's own socket at `/ws/terminals/<id>`. Consequences worth knowing:
@@ -87,7 +88,7 @@ the host's own socket at `/ws/terminals/<id>`. Consequences worth knowing:
 
 ```sh
 npm install
-node --test lib/frame.test.ts lib/scope.test.ts   # geometry and scope rules
+node --test lib/frame.test.ts lib/scope.test.ts lib/title.test.ts   # geometry, scope and title rules
 npx tsc --noEmit
 bb plugin build
 bb plugin reload hmm-floating-terminal

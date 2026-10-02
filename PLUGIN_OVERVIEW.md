@@ -13,7 +13,7 @@ project you are in, without leaving the conversation for a panel or another app.
   the project you are looking at; with no project selected, it opens in your
   home directory. Away from a project — the home screen, settings, a panel —
   the window stays out of the way.
-- `+` in the title bar adds another shell in the same project, `x` closes one.
+- `+` in the title bar adds another shell in the same project, `x` closes one, and double-clicking a tab renames it.
   The tab you were last on is the tab you come back to.
 - Ctrl and backtick opens a closed terminal, closes a normal terminal, and
   switches between maximized and minimized modes when the window is already in

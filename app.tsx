@@ -440,6 +440,22 @@ function FloatingTerminalWindow() {
     );
   };
 
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+
+  const renameTab = (terminalId: string, value: string) => {
+    setRenamingId(null);
+    const name = value.trim().slice(0, 40);
+    const current = tabs.find((tab) => tab.terminalId === terminalId);
+    if (name === "" || current === undefined || name === current.label) return;
+    setLoaded({
+      scope: scopeKey,
+      tabs: tabs.map((tab) =>
+        tab.terminalId === terminalId ? { ...tab, label: name } : tab,
+      ),
+    });
+    void rpc.call("session_rename", { terminalId, name });
+  };
+
   const closeTab = (terminalId: string) => {
     // Optimistic: the pane unmounts now, and a failed close only leaves an
     // orphan session that BB's own terminal panel can still reach. The active
@@ -536,16 +552,37 @@ function FloatingTerminalWindow() {
                 )}
                 key={tab.terminalId}
               >
-                <button
-                  aria-selected={tab.terminalId === activeId}
-                  className="px-2 py-0.5 text-xs hover:text-foreground"
-                  onClick={() => selectTab(tab.terminalId)}
-                  role="tab"
-                  title={tab.cwd}
-                  type="button"
-                >
-                  {tab.label}
-                </button>
+                {renamingId === tab.terminalId ? (
+                  <input
+                    autoFocus
+                    className="w-24 bg-transparent px-2 py-0.5 text-xs outline-none"
+                    defaultValue={tab.label}
+                    maxLength={40}
+                    onBlur={(event) =>
+                      renameTab(tab.terminalId, event.currentTarget.value)
+                    }
+                    onFocus={(event) => event.currentTarget.select()}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") event.currentTarget.blur();
+                      if (event.key === "Escape") {
+                        event.currentTarget.value = tab.label;
+                        event.currentTarget.blur();
+                      }
+                    }}
+                  />
+                ) : (
+                  <button
+                    aria-selected={tab.terminalId === activeId}
+                    className="px-2 py-0.5 text-xs hover:text-foreground"
+                    onClick={() => selectTab(tab.terminalId)}
+                    onDoubleClick={() => setRenamingId(tab.terminalId)}
+                    role="tab"
+                    title={tab.cwd}
+                    type="button"
+                  >
+                    {tab.label}
+                  </button>
+                )}
                 <button
                   aria-label={`Close ${tab.label}`}
                   className="px-1 py-0.5 hover:text-foreground"

@@ -11,10 +11,7 @@
 import { homedir } from "node:os";
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
-
-/** Marks the sessions this plugin owns, so terminals opened in BB's own panel
- *  are never hijacked by the floating window. Tabs are `<TITLE> <n>`. */
-const TITLE = "Hmm floating terminal";
+import { labelOf, TITLE, titleFor } from "./lib/title.ts";
 
 /** Every scope is a project: BB has no thread without one, and the window is
  *  hidden wherever no project is open. "No project" is BB's Personal project,
@@ -37,16 +34,17 @@ export const rpcContract = defineRpcContract({
     }),
     output: tabOutput,
   },
+  session_rename: {
+    input: z
+      .object({ terminalId: z.string().min(1), name: z.string().trim().min(1).max(40) })
+      .strict(),
+    output: z.object({ label: z.string() }).strict(),
+  },
   session_close: {
     input: z.object({ terminalId: z.string().min(1) }).strict(),
     output: z.object({}).strict(),
   },
 });
-
-/** `"Floating terminal 3"` → `"Terminal 3"`; anything else stays as it is. */
-function labelOf(title: string): string {
-  return title.startsWith(TITLE) ? `Terminal${title.slice(TITLE.length)}` : title;
-}
 
 export default async function plugin(bb: BbPluginApi) {
   bb.log.info("loaded");
@@ -119,6 +117,11 @@ export default async function plugin(bb: BbPluginApi) {
         label: labelOf(title),
         cwd: created.initialCwd,
       };
+    },
+
+    session_rename: async ({ terminalId, name }) => {
+      await bb.sdk.terminals.rename({ terminalId, title: titleFor(name) });
+      return { label: name };
     },
 
     session_close: async ({ terminalId }) => {
