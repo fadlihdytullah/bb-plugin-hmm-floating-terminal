@@ -1,7 +1,7 @@
 # Hmm Floating Terminal
 
 Real shells in a floating, tabbed window that follows the project you are in,
-opened from the composer, the thread header, or `Ctrl+``.
+opened from the composer or `Ctrl+``.
 
 ![The window over a thread, with a dev server running](screenshot-1.png)
 
@@ -23,8 +23,6 @@ currently looking at.
   of the microphone: in an existing thread, and in the New thread composer
   once a project is selected. With more than three plugin actions, BB may move
   it into the composer's `...` menu.
-- **Thread header** — the terminal glyph in the header action row, left of BB's
-  own controls.
 - **`Ctrl+``** — opens a closed terminal, closes a normal terminal, and switches
   between maximized and minimized modes when the window is already in either
   mode.

@@ -33,7 +33,6 @@ import {
   useBbContext,
   useComposerView,
   useRpc,
-  type PluginThreadHeaderActionProps,
 } from "@get-bb/plugin-sdk/app";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal, type ITheme } from "@xterm/xterm";
@@ -694,10 +693,6 @@ function TerminalActionButton({ className = "size-7" }: { className?: string }) 
   );
 }
 
-function ThreadHeaderTerminalAction(_props: PluginThreadHeaderActionProps) {
-  return <TerminalActionButton />;
-}
-
 function NewThreadTerminalAction() {
   const view = useComposerView();
   const projectId =
@@ -717,11 +712,6 @@ export default definePluginApp((app) => {
   app.slots.experimental_appOverlay({
     id: "floating-terminal",
     component: FloatingTerminalWindow,
-  });
-  app.slots.experimental_threadHeaderAction({
-    id: "floating-terminal",
-    title: "Floating terminal",
-    component: ThreadHeaderTerminalAction,
   });
   app.composer.customize({
     id: "floating-terminal-new-thread",

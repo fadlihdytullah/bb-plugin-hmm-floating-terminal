@@ -8,8 +8,8 @@ project you are in, without leaving the conversation for a panel or another app.
   same tabs and the same dev server still running.
 - Tabs belong to the project checkout, not to a thread, so moving between a
   project's threads never costs you a shell.
-- Launchers in the thread header and in the composer's action row — in
-  existing threads and in the New thread composer. Both open the terminal of
+- A launcher in the composer's action row — in existing threads and in the
+  New thread composer. It opens the terminal of
   the project you are looking at; with no project selected, it opens in your
   home directory. Away from a project — the home screen, settings, a panel —
   the window stays out of the way.
