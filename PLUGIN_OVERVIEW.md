@@ -28,8 +28,8 @@ project you are in, without leaving the conversation for a panel or another app.
 BB already runs terminal sessions. This plugin asks for them in the project's
 checkout — or your home directory when there is no project — and attaches
 xterm to the host's live socket. Nothing is proxied through the plugin, and
-closing the window leaves every shell running — reopening replays the
-scrollback and picks up where you left off. Closing a tab is what ends a shell.
+closing the window leaves every shell running — reopening shows it instantly,
+right where you left off. Closing a tab is what ends a shell.
 
 ## Requirements
 

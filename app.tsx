@@ -35,6 +35,7 @@ import {
   useRpc,
 } from "@get-bb/plugin-sdk/app";
 import { FitAddon } from "@xterm/addon-fit";
+import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal, type ITheme } from "@xterm/xterm";
 import type { rpcContract } from "./server";
 import { Button } from "@/components/ui/button";
@@ -160,12 +161,127 @@ function socketUrl(terminalId: string): string {
 
 const REPLAY_SETTLE_MS = 200;
 
-/** One xterm bound to one existing session. A remount (bumped `attempt`, or a
- *  tab switch) is the reconnect path: the session lives on the server and the
- *  host replays its scrollback, so nothing is lost.
- *
- *  ponytail: only the active tab is mounted, so switching tabs costs a replay.
- *  Keep every pane mounted and hidden if that replay ever becomes visible. */
+type LiveTerminal = {
+  term: Terminal;
+  fit: FitAddon;
+  element: HTMLDivElement;
+  send: (message: unknown) => void;
+  failure: string | null;
+  onFailure: ((failure: string | null) => void) | null;
+  dispose: () => void;
+};
+
+const live = new Map<string, LiveTerminal>();
+
+function dropTerminal(terminalId: string): void {
+  live.get(terminalId)?.dispose();
+  live.delete(terminalId);
+}
+
+function attachTerminal(terminalId: string, host: HTMLElement): LiveTerminal {
+  const existing = live.get(terminalId);
+  if (existing !== undefined) {
+    host.appendChild(existing.element);
+    return existing;
+  }
+
+  const element = document.createElement("div");
+  element.className = "size-full";
+  host.appendChild(element);
+
+  const term = new Terminal({
+    cursorBlink: true,
+    fontFamily: FONT_FAMILY,
+    fontSize: 12,
+    fontWeight: "400",
+    fontWeightBold: "700",
+    scrollback: 5000,
+    theme: xtermTheme(),
+  });
+  const fit = new FitAddon();
+  term.loadAddon(fit);
+  term.open(element);
+  fit.fit();
+
+  const socket = new WebSocket(socketUrl(terminalId));
+  let disposed = false;
+
+  const send = (message: unknown) => {
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(message));
+    }
+  };
+
+  const entry: LiveTerminal = {
+    term,
+    fit,
+    element,
+    send,
+    failure: null,
+    onFailure: null,
+    dispose: () => {
+      disposed = true;
+      window.clearTimeout(settleTimer);
+      input.dispose();
+      socket.close();
+      term.dispose();
+      element.remove();
+    },
+  };
+
+  const fail = (failure: string) => {
+    entry.failure = failure;
+    entry.onFailure?.(failure);
+  };
+
+  let replaying = true;
+  let settleTimer: number | undefined;
+  const settle = () => {
+    window.clearTimeout(settleTimer);
+    settleTimer = window.setTimeout(() => {
+      replaying = false;
+    }, REPLAY_SETTLE_MS);
+  };
+  settle();
+
+  const input = term.onData((data) => {
+    if (replaying) return;
+    send({ type: "input", dataBase64: encodeBase64(data) });
+  });
+
+  socket.onopen = () => {
+    send({ type: "resize", cols: term.cols, rows: term.rows });
+  };
+  socket.onmessage = (event) => {
+    const message = JSON.parse(String(event.data)) as {
+      type: string;
+      chunk?: { dataBase64: string };
+      message?: string;
+    };
+    if (message.type === "output" && message.chunk !== undefined) {
+      if (replaying) settle();
+      term.write(decodeBase64(message.chunk.dataBase64));
+      return;
+    }
+    if (message.type === "exited") {
+      term.writeln(`\r\n${ESC}[2m[process exited]${ESC}[0m`);
+      return;
+    }
+    if (message.type === "error") {
+      fail(message.message ?? "Terminal error");
+    }
+  };
+  socket.onerror = () => {
+    if (!disposed) fail("Terminal connection failed");
+  };
+  socket.onclose = () => {
+    if (!disposed) fail("Terminal disconnected");
+  };
+
+  live.set(terminalId, entry);
+  return entry;
+}
+
 function TerminalPane({
   attempt,
   onReconnect,
@@ -186,31 +302,22 @@ function TerminalPane({
     const host = hostRef.current;
     if (host === null) return;
 
-    setFailure(null);
-    const term = new Terminal({
-      cursorBlink: true,
-      fontFamily: FONT_FAMILY,
-      fontSize: 12,
-      fontWeight: "400",
-      fontWeightBold: "700",
-      scrollback: 5000,
-      theme: xtermTheme(),
-    });
+    const entry = attachTerminal(terminalId, host);
+    const { term, fit, send } = entry;
     termRef.current = term;
-    const fit = new FitAddon();
-    term.loadAddon(fit);
-    term.open(host);
-    fit.fit();
-    term.focus();
+    setFailure(entry.failure);
+    entry.onFailure = setFailure;
 
-    const socket = new WebSocket(socketUrl(terminalId));
-    let disposed = false;
-
-    const send = (message: unknown) => {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify(message));
-      }
-    };
+    let webgl: WebglAddon | null = new WebglAddon();
+    try {
+      term.loadAddon(webgl);
+      webgl.onContextLoss(() => {
+        webgl?.dispose();
+        webgl = null;
+      });
+    } catch {
+      webgl = null;
+    }
 
     const observer = new ResizeObserver(() => {
       // Minimizing hides the body; fitting a zero box would resize the PTY to
@@ -220,58 +327,13 @@ function TerminalPane({
       send({ type: "resize", cols: term.cols, rows: term.rows });
     });
     observer.observe(host);
-
-    let replaying = true;
-    let settleTimer: number | undefined;
-    const settle = () => {
-      window.clearTimeout(settleTimer);
-      settleTimer = window.setTimeout(() => {
-        replaying = false;
-      }, REPLAY_SETTLE_MS);
-    };
-    settle();
-
-    const input = term.onData((data) => {
-      if (replaying) return;
-      send({ type: "input", dataBase64: encodeBase64(data) });
-    });
-
-    socket.onopen = () => {
-      send({ type: "resize", cols: term.cols, rows: term.rows });
-    };
-    socket.onmessage = (event) => {
-      const message = JSON.parse(String(event.data)) as {
-        type: string;
-        chunk?: { dataBase64: string };
-        message?: string;
-      };
-      if (message.type === "output" && message.chunk !== undefined) {
-        if (replaying) settle();
-        term.write(decodeBase64(message.chunk.dataBase64));
-        return;
-      }
-      if (message.type === "exited") {
-        term.writeln(`\r\n${ESC}[2m[process exited]${ESC}[0m`);
-        return;
-      }
-      if (message.type === "error") {
-        setFailure(message.message ?? "Terminal error");
-      }
-    };
-    socket.onerror = () => {
-      if (!disposed) setFailure("Terminal connection failed");
-    };
-    socket.onclose = () => {
-      if (!disposed) setFailure("Terminal disconnected");
-    };
+    term.focus();
 
     return () => {
-      disposed = true;
-      window.clearTimeout(settleTimer);
       observer.disconnect();
-      input.dispose();
-      socket.close();
-      term.dispose();
+      webgl?.dispose();
+      entry.onFailure = null;
+      entry.element.remove();
       termRef.current = null;
     };
   }, [attempt, terminalId]);
@@ -463,6 +525,7 @@ function FloatingTerminalWindow() {
     setLoaded({ scope: scopeKey, tabs: remaining });
     // The last tab closing closes the window — an empty frame has no use.
     if (remaining.length === 0) close();
+    dropTerminal(terminalId);
     void rpc.call("session_close", { terminalId });
   };
 
@@ -666,7 +729,10 @@ function FloatingTerminalWindow() {
           <TerminalPane
             attempt={attempt}
             key={activeId}
-            onReconnect={() => setAttempt((current) => current + 1)}
+            onReconnect={() => {
+              dropTerminal(activeId);
+              setAttempt((current) => current + 1);
+            }}
             terminalId={activeId}
           />
         )}

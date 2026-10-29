@@ -54,11 +54,12 @@ BB's theme.
 `+` in the tab bar adds a shell in the same project; double-click a tab to
 rename it (Enter saves, Esc cancels); `x` on a tab closes that shell for good. Closing the last tab closes the window for that project. A
 project's tabs are its own and follow you across that project's threads. The
-tab you last selected in a project is the one you return to. Only the active
-tab is mounted — switching back replays the session's scrollback from BB rather
-than restarting anything. Input is ignored while the replay settles (about
-200ms), so stale terminal queries in the scrollback are not answered into the
-shell.
+tab you last selected in a project is the one you return to. Each shell's
+xterm stays alive after it is first shown, so switching tabs, projects, or
+reopening the window shows it instantly; only a page reload replays the
+scrollback from BB. Input is ignored while that replay settles (about 200ms),
+so stale terminal queries in the scrollback are not answered into the shell.
+The visible tab renders with WebGL, falling back to the DOM renderer.
 
 ## What runs
 
@@ -74,8 +75,8 @@ the host's own socket at `/ws/terminals/<id>`. Consequences worth knowing:
   own git worktree still gets the project's main checkout, not that worktree.
 - No project selected (BB's Personal project, which has no checkout) starts
   the shell in the home directory of the first connected machine.
-- Closing the window leaves every session running. Reopening reattaches to
-  them as tabs, with scrollback replayed; a build or an ssh session survives.
+- Closing the window leaves every session running and its socket attached.
+  Reopening shows them as tabs instantly; a build or an ssh session survives.
   Closing a *tab* kills that shell.
 - Terminals you open in BB's own terminal panel are untouched — the plugin only
   reuses sessions it created itself.
